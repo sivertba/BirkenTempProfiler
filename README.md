@@ -28,7 +28,7 @@ This Python script computes and visualizes the temperature profile for the Birke
 
 2. Run the script from the command line, providing necessary arguments:
    ```bash
-   python birkebeiner_temperature_profile.py -r rennet -s "2024-03-16T08:00:00" -t 5 -f
+   python birkentempprofiler.py -r rennet -s "2024-03-16T08:00:00" -t 5 -f
    ```
    - Replace `rennet` with the desired race type (rennet, rittet, or løpet).
    - Adjust the start time (`-s`) and total time (`-t`) as needed.
