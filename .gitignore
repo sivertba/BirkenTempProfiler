@@ -162,3 +162,5 @@ cython_debug/
 
 # Files from the environment
 *.json
+*.pkl
+*.html
