@@ -56,8 +56,10 @@ def getArgumnets():
 
     parser.add_argument('-m', '--minutes', type=int, help="The total time in minutes")
     parser.add_argument('-t','--hours', type=int, help="The total time in hours", default=4)
+    parser.add_argument('-f', '--fresh', action='store_true', help="Download all MET data fresh")    
 
     parser.add_argument('-d', '--debug', action='store_true', help="Debug mode")
+
 
     args = checkArgs(parser.parse_args())
 
@@ -243,22 +245,38 @@ def _findClosestTimeIndex(time, METdata):
     return times.index(closestTime)
 
 
-def appendMET2GPX(gpxDict: dict) -> dict:
+def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
     """
     Appends the MET data to the GPX data.
 
     Args:
         gpxDict (dict): The GPX data as a dictionary.
+        fresh (bool): Whether to download fresh MET data or not.
 
     Returns:
         dict: The GPX data with the MET data appended.
     """
+    import os
+    import pickle
+
+    # Check if the MET data should be downloaded fresh
+    if not fresh and os.path.exists('METdata.pkl'):
+        with open('METdata.pkl', 'rb') as f:
+            METdata = pickle.load(f)
+    else:
+        METdata = {}
+        fresh = True
 
     # Get the MET data for each point in the GPX data
     temp_low = []
     temp_high = []
     for i in range(len(gpxDict['lat'])):
-        outputMET = _METurlRequstFunction(gpxDict['lat'][i],gpxDict['lon'][i],gpxDict['ele'][i])
+        METDataKey = f"{gpxDict['lat'][i]}_{gpxDict['lon'][i]}_{gpxDict['ele'][i]}".replace('.','_')
+        if fresh:
+            outputMET = _METurlRequstFunction(gpxDict['lat'][i],gpxDict['lon'][i],gpxDict['ele'][i])
+            METdata[METDataKey] = outputMET
+        else:
+            outputMET = METdata[METDataKey]
 
         # find values for temperature closest to the time in the GPX data
         index = _findClosestTimeIndex(gpxDict['time'][i], outputMET)
@@ -272,14 +290,19 @@ def appendMET2GPX(gpxDict: dict) -> dict:
     gpxDict['temp_low'] = temp_low
     gpxDict['temp_high'] = temp_high
 
+    # Save the MET data to a pickle file
+    with open('METdata.pkl', 'wb') as f:
+        pickle.dump(METdata, f)
+        
     return gpxDict
 
-def plotFullDict(fullDict: dict):
+def plotFullDict(fullDict: dict, args: argparse.Namespace):
     """
     Plots the full dictionary containing the GPX and MET data.
 
     Args:
         fullDict (dict): The full dictionary containing the GPX and MET data.
+        args (argparse.Namespace): The command line arguments.
     """
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -287,14 +310,17 @@ def plotFullDict(fullDict: dict):
     fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_high'], mode='lines', name='Temperature High'))
     fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['ele'], mode='lines', name='Elevation'), secondary_y=True)
 
+    # Add title and labels
+    title = f"Start Time: {args.datetime_start.isoformat()}, Duration: {args.total_time//3600}h {args.total_time%3600//60}m"
+
     
     fig.update_layout(
-        title="Elevation Profile",
+        title=title,
         xaxis_title="Distance (km)",
         yaxis_title="Elevation (m)",
         font=dict(
             family="Courier New, monospace",
-            size=18,
+            size=12,
             color="RebeccaPurple"
         )
     )
@@ -308,7 +334,7 @@ if __name__ == "__main__":
         gpxData = getGPXData(args.race, args.total_time)
         gpxDict = gpx2dict(gpxData)
         gpxDict = shiftTimeGPX(gpxDict, args.datetime_start)
-        fullDict = appendMET2GPX(gpxDict)
+        fullDict = appendMET2GPX(gpxDict, args.fresh)
     
     else:
         with open('fullDict.json', 'r') as f:
@@ -319,6 +345,9 @@ if __name__ == "__main__":
         json.dump(fullDict, f)
 
 
-    plotFullDict(fullDict)
+    fig = plotFullDict(fullDict, args)
+
+    # Save the figure as html
+    fig.write_html("temperatureProfile.html")
 
     print("Done!")
