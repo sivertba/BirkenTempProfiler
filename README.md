@@ -33,7 +33,7 @@ This Python script computes and visualizes the temperature profile for the Birke
    - Replace `rennet` with the desired race type (rennet, rittet, or løpet).
    - Adjust the start time (`-s`) and total time (`-t`) as needed.
    - Use the `-f` flag to download fresh weather data (not cached).
-   - Use '-h' to see additional features.
+   - Use `-h` to see additional features.
 
 ## Output
 
