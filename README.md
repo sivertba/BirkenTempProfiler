@@ -2,6 +2,8 @@
 
 # Temperature Profile for Birken Race
 
+As an example go to [here](https://folk.ntnu.no/sivertba/birken/)
+
 This Python script computes and visualizes the temperature profile for the Birken Races, such as the long-distance cross-country ski race in Norway. It combines GPX data from a chosen route and race time with weather forecast data from the Norwegian Meteorological Institute (MET Norway) to create an interactive plot showing the estimated temperature range along the course.
 
 ## Key Features
