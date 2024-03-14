@@ -311,7 +311,7 @@ def plotFullDict(fullDict: dict, args: argparse.Namespace):
     fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['ele'], mode='lines', name='Elevation'), secondary_y=True)
 
     # Add title and labels
-    title = f"Start Time: {args.datetime_start.isoformat()}, Duration: {args.total_time//3600}h {args.total_time%3600//60}m"
+    title = f"Start Time: {args.datetime_start.isoformat()} CET, Duration: {args.total_time//3600}h {args.total_time%3600//60}m"
 
     
     fig.update_layout(
@@ -324,7 +324,7 @@ def plotFullDict(fullDict: dict, args: argparse.Namespace):
             color="RebeccaPurple"
         )
     )
-    fig.show()
+    # fig.show()
     return fig
 
 if __name__ == "__main__":
