@@ -52,7 +52,7 @@ def checkArgs(args: argparse.Namespace) -> argparse.Namespace:
 def getArgumnets():
     parser = argparse.ArgumentParser(description='Collect user input to compute the temperature profile of the Birken Race')
     parser.add_argument('-r', '--race', type=str, help="Which race, Either 'rennet', 'rittet', or 'løpet'", default='rennet')
-    parser.add_argument('-s','--start', type=str, help="The start time in ISO format", default=datetime.datetime.now().isoformat())
+    parser.add_argument('-s','--start', type=str, help="The start time in ISO format Norwegian Time", default=datetime.datetime.now().isoformat())
 
     parser.add_argument('-m', '--minutes', type=int, help="The total time in minutes")
     parser.add_argument('-t','--hours', type=int, help="The total time in hours", default=4)
@@ -174,7 +174,39 @@ def gpx2dict(gpxData: str) -> dict:
     }
     return gpxDict
 
-def METurlRequstFunction(lat,lon,alt):
+def shiftTimeGPX(gpxDict: dict, startTime: datetime) -> dict:
+    """
+    Shifts the time in the GPX data to the start time.
+
+    Args:
+        gpxDict (dict): The GPX data as a dictionary.
+        startTime (datetime): The start time.
+
+    Returns:
+        dict: The GPX data with the time shifted to the start time.
+    """
+
+    # Check if the start time is a datetime object
+    if not type(startTime) == datetime.datetime:
+        startTime = datetime.datetime.fromisoformat(startTime)
+    
+    # Convert from CET to UTC
+    startTime = startTime.astimezone(datetime.timezone.utc)
+
+    # Convert the time to datetime objects
+    time = [datetime.datetime.fromisoformat(t) for t in gpxDict['time']]
+
+    # Shift the time to the start time
+    time = [startTime + (t - time[0]) for t in time]
+
+    # Convert the time back to strings
+    time = [t.isoformat() for t in time]
+
+    gpxDict['time'] = time
+
+    return gpxDict
+
+def _METurlRequstFunction(lat,lon,alt):
     urlRequstStr = f'https://api.met.no/weatherapi/locationforecast/2.0/complete?lat={lat}&lon={lon}&altitude={int(alt)}'
     headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'}
@@ -188,7 +220,28 @@ def METurlRequstFunction(lat,lon,alt):
         return None
 
     return r.json()
-    
+
+def _findClosestTimeIndex(time, METdata):
+    """
+    Finds the closest time index in the timeseries to the given time.
+
+    Args:
+        time (datetime): The time to find the closest time to.
+        METdata (dict): The MET data as a dictionary.
+    Returns:
+        int: The index of the closest time in the timeseries.
+    """
+
+    timeseries = METdata['properties']['timeseries']
+    times = [datetime.datetime.fromisoformat(t['time']) for t in timeseries]
+
+    if not type(time) == datetime.datetime:
+        time = datetime.datetime.fromisoformat(time)
+
+    closestTime = min(times, key=lambda x: abs(x - time))
+
+    return times.index(closestTime)
+
 
 def appendMET2GPX(gpxDict: dict) -> dict:
     """
@@ -205,9 +258,16 @@ def appendMET2GPX(gpxDict: dict) -> dict:
     temp_low = []
     temp_high = []
     for i in range(len(gpxDict['lat'])):
-        outputMET = METurlRequstFunction(gpxDict['lat'][i],gpxDict['lon'][i],gpxDict['ele'][i])
-        temp_high.append(outputMET['properties']['timeseries'][0]['data']['instant']['details']['air_temperature_percentile_90'])
-        temp_low.append(outputMET['properties']['timeseries'][0]['data']['instant']['details']['air_temperature_percentile_10'])
+        outputMET = _METurlRequstFunction(gpxDict['lat'][i],gpxDict['lon'][i],gpxDict['ele'][i])
+
+        # find values for temperature closest to the time in the GPX data
+        index = _findClosestTimeIndex(gpxDict['time'][i], outputMET)
+
+        temp_high.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature_percentile_90'])
+        temp_low.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature_percentile_10'])
+
+        # print progress
+        print(f"Coordinates checked: {i}/{len(gpxDict['lat'])}", end='\r')
 
     gpxDict['temp_low'] = temp_low
     gpxDict['temp_high'] = temp_high
@@ -247,6 +307,7 @@ if __name__ == "__main__":
     if not args.debug or not os.path.exists('fullDict.json'):
         gpxData = getGPXData(args.race, args.total_time)
         gpxDict = gpx2dict(gpxData)
+        gpxDict = shiftTimeGPX(gpxDict, args.datetime_start)
         fullDict = appendMET2GPX(gpxDict)
     
     else:
