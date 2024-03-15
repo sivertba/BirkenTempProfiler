@@ -48,6 +48,11 @@ def checkArgs(args: argparse.Namespace) -> argparse.Namespace:
         print("Invalid race input. Use either 'rennet', 'rittet', or 'løpet'")
         exit(1)
 
+    if args.gpx is not None:
+        if not os.path.exists(args.gpx):
+            print(f"Invalid path to GPX file: {args.gpx}")
+            exit(1)
+
     return args
 
 def getArgumnets():
@@ -59,6 +64,8 @@ def getArgumnets():
     parser.add_argument('-t','--hours', type=int, help="The total time in hours", default=4)
     parser.add_argument('-f', '--fresh', action='store_true', help="Download all MET data fresh")    
 
+    parser.add_argument('-g', '--gpx', type=str, help="The path to the local GPX file to use")
+
     parser.add_argument('-d', '--debug', action='store_true', help="Debug mode")
 
 
@@ -67,7 +74,7 @@ def getArgumnets():
     return args
 
 
-def getGPXData(race: str, total_time: int) -> str:
+def getGPXData(race: str, total_time: int, gpxPath) -> str:
     """
     Fetches the GPX data for the selected race and total time.
     From tracker.birkebeiner.no
@@ -75,9 +82,13 @@ def getGPXData(race: str, total_time: int) -> str:
     Args:
         race (str): the type of race, either 'rennet', 'rittet', or 'løpet'
         total_time (int): the total time in seconds
+        gpxPath (str): the path to the local GPX file to use
     Returns:
         str: The GPX data for the selected as a string
     """
+    if gpxPath is not None:
+        with open(gpxPath, 'r') as f:
+            return f.read()
 
     urlRequstStr = f'http://tracker.birkebeiner.no/splitLive/dumpRoute.php?project={race}&sluttid={total_time}&fileFormat=gpx'
 
@@ -370,7 +381,7 @@ if __name__ == "__main__":
     args = getArgumnets()
 
     if not args.debug or not os.path.exists('fullDict.json'):
-        gpxData = getGPXData(args.race, args.total_time)
+        gpxData = getGPXData(args.race, args.total_time, args.gpx)
         gpxDict = gpx2dict(gpxData)
         gpxDict = shiftTimeGPX(gpxDict, args.datetime_start)
         fullDict = appendMET2GPX(gpxDict, args.fresh)
