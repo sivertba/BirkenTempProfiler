@@ -2,7 +2,7 @@ import os
 
 durations = [(hh,mm) for hh in range(3,8) for mm in [45, 30, 15, 0] ]
 
-# Assuming 2024-03-16
+startDay = "2024-03-17"
 StartTimes = [ (str(hh), str(mm)) for hh in range(7,10) for mm in [45, 30, 15, 0] ]
 
 for dur in durations:
@@ -17,7 +17,7 @@ for dur in durations:
             mm = "0" + mm
 
         cmd = "python3 birkentempprofiler.py -r 'rennet' "
-        cmd += "-s '2024-03-16T" + hh + ":" + mm + ":00' "
+        cmd += f"-s '{startDay}T" + hh + ":" + mm + ":00' "
         cmd += "-t " + str(dur[0]) + " -m " + str(dur[1])
         print(cmd)
         os.system(cmd)

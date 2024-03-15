@@ -7,6 +7,7 @@ import json
 import os
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import pandas as pd
 
 def checkArgs(args: argparse.Namespace) -> argparse.Namespace:
     """
@@ -81,6 +82,17 @@ def getGPXData(race: str, total_time: int) -> str:
     urlRequstStr = f'http://tracker.birkebeiner.no/splitLive/dumpRoute.php?project={race}&sluttid={total_time}&fileFormat=gpx'
 
     gpxData = None
+    fname = f"{race}_{total_time}.gpx"
+    folderPath = "gpxFiles"
+    if not os.path.exists(folderPath):
+        os.makedirs(folderPath)
+    fname = os.path.join(folderPath, fname)
+
+    if os.path.exists(fname):
+        with open(fname, 'r') as f:
+            gpxData = f.read()
+        return gpxData
+
     try:
         # Fetch the GPX data
         response = requests.get(urlRequstStr)
@@ -89,7 +101,11 @@ def getGPXData(race: str, total_time: int) -> str:
     except requests.exceptions.RequestException as e:
         print(f"Failed to fetch GPX data using the URL: {urlRequstStr}")
         print(f"Error: {e}")
-
+    
+    # file name with race and time
+    with open(fname, 'w') as f:
+        f.write(gpxData)
+ 
     return gpxData
 
 def accessChildElements(root):
@@ -209,19 +225,24 @@ def shiftTimeGPX(gpxDict: dict, startTime: datetime) -> dict:
     return gpxDict
 
 def _METurlRequstFunction(lat,lon,alt):
+    import time
     urlRequstStr = f'https://api.met.no/weatherapi/locationforecast/2.0/complete?lat={lat}&lon={lon}&altitude={int(alt)}'
     headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.36'}
+    
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            r = requests.get(urlRequstStr.strip(), headers=headers, timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.RequestException as e:
+            time.sleep(5*(i+1))
+    
+    print(f"Failed to fetch MET data using the URL: {urlRequstStr}")
+    print(f"Error: {e}")
+    return None
 
-    try:
-        r = requests.get(urlRequstStr.strip(), headers=headers, timeout=10)
-        r.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(f"Failed to fetch MET data using the URL: {urlRequstStr}")
-        print(f"Error: {e}")
-        return None
-
-    return r.json()
 
 def _findClosestTimeIndex(time, METdata):
     """
@@ -270,6 +291,10 @@ def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
     # Get the MET data for each point in the GPX data
     temp_low = []
     temp_high = []
+    humidity = []
+    wind_speed = []
+    cloud_area_fraction = []
+    wind_from_direction = []
     for i in range(len(gpxDict['lat'])):
         METDataKey = f"{gpxDict['lat'][i]}_{gpxDict['lon'][i]}_{gpxDict['ele'][i]}".replace('.','_')
         if fresh:
@@ -283,12 +308,21 @@ def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
 
         temp_high.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature_percentile_90'])
         temp_low.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature_percentile_10'])
+        humidity.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['relative_humidity'])
+        wind_speed.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['wind_speed'])
+        cloud_area_fraction.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['cloud_area_fraction'])
+        wind_from_direction.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['wind_from_direction'])
+
 
         # print progress
         print(f"Coordinates checked: {i}/{len(gpxDict['lat'])}", end='\r')
 
     gpxDict['temp_low'] = temp_low
     gpxDict['temp_high'] = temp_high
+    gpxDict['humidity'] = humidity
+    gpxDict['wind_speed'] = wind_speed
+    gpxDict['cloud_area_fraction'] = cloud_area_fraction
+    gpxDict['wind_from_direction'] = wind_from_direction
 
     # Save the MET data to a pickle file
     with open('METdata.pkl', 'wb') as f:
@@ -298,8 +332,6 @@ def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
 
 def plotFullDict(fullDict: dict, args: argparse.Namespace):
     """
-    Plots the full dictionary containing the GPX and MET data.
-
     Args:
         fullDict (dict): The full dictionary containing the GPX and MET data.
         args (argparse.Namespace): The command line arguments.
@@ -308,23 +340,30 @@ def plotFullDict(fullDict: dict, args: argparse.Namespace):
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_low'], mode='lines', name='Temperature Low'))
     fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_high'], mode='lines', name='Temperature High'))
-    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['ele'], mode='lines', name='Elevation'), secondary_y=True)
 
-    # Add title and labels
+
+    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['ele'], mode='markers+lines', name='Elevation'), secondary_y=True)
+
     title = f"Start Time: {args.datetime_start.isoformat()} CET, Duration: {args.total_time//3600}h {args.total_time%3600//60}m"
-
     
     fig.update_layout(
         title=title,
         xaxis_title="Distance (km)",
-        yaxis_title="Elevation (m)",
+        yaxis_title="Temperature (°C)",
         font=dict(
             family="Courier New, monospace",
             size=12,
             color="RebeccaPurple"
         )
     )
-    # fig.show()
+
+    # # Update 2nd yaxis
+    # fig.update_yaxes(title_text="Elevation (m)", secondary_y=True)
+
+    # # Add wind speed and humidity to the ele trace
+    # fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['wind_speed'], mode='lines', name='Wind Speed'), secondary_y=True)
+    # fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['humidity'], mode='lines', name='Humidity'), secondary_y=True)
+
     return fig
 
 if __name__ == "__main__":

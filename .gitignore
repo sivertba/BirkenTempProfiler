@@ -164,3 +164,7 @@ cython_debug/
 *.json
 *.pkl
 *.html
+*.gpx
+
+# ignore .DS_Store files
+.DS_Store
