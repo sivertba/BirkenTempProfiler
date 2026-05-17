@@ -163,7 +163,6 @@ cython_debug/
 # Files from the environment
 *.json
 *.pkl
-*.html
 *.gpx
 
 # ignore .DS_Store files
