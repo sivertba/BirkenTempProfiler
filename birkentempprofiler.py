@@ -56,7 +56,7 @@ def checkArgs(args: argparse.Namespace) -> argparse.Namespace:
     return args
 
 def getArgumnets():
-    parser = argparse.ArgumentParser(description='Collect user input to compute the temperature profile of the Birken Race')
+    parser = argparse.ArgumentParser(description='Compute and visualize the temperature profile for an outdoor sporting event route.')
     parser.add_argument('-r', '--race', type=str, help="Which race, Either 'rennet', 'rittet', or 'løpet'", default='rennet')
     parser.add_argument('-s','--start', type=str, help="The start time in ISO format Norwegian Time", default=datetime.datetime.now().isoformat())
 
@@ -302,6 +302,7 @@ def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
     # Get the MET data for each point in the GPX data
     temp_low = []
     temp_high = []
+    temp_mean = []
     humidity = []
     wind_speed = []
     cloud_area_fraction = []
@@ -319,6 +320,7 @@ def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
 
         temp_high.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature_percentile_90'])
         temp_low.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature_percentile_10'])
+        temp_mean.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['air_temperature'])
         humidity.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['relative_humidity'])
         wind_speed.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['wind_speed'])
         cloud_area_fraction.append(outputMET['properties']['timeseries'][index]['data']['instant']['details']['cloud_area_fraction'])
@@ -330,6 +332,7 @@ def appendMET2GPX(gpxDict: dict, fresh: bool) -> dict:
 
     gpxDict['temp_low'] = temp_low
     gpxDict['temp_high'] = temp_high
+    gpxDict['temp_mean'] = temp_mean
     gpxDict['humidity'] = humidity
     gpxDict['wind_speed'] = wind_speed
     gpxDict['cloud_area_fraction'] = cloud_area_fraction
@@ -349,9 +352,9 @@ def plotFullDict(fullDict: dict, args: argparse.Namespace):
     """
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_low'], mode='lines', name='Temperature Low'))
-    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_high'], mode='lines', name='Temperature High'))
-
+    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_low'], mode='lines', name='Tempe Low'))
+    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_high'], mode='lines', name='Temp High'))
+    fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['temp_mean'], mode='lines', name='Temp Mean'))
 
     fig.add_trace(go.Scatter(x=fullDict['distance'], y=fullDict['ele'], mode='markers+lines', name='Elevation'), secondary_y=True)
 
